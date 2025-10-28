@@ -1,0 +1,100 @@
+================================================================
+  Gemini API 后台服务 - 设置说明
+================================================================
+
+📝 步骤 1: 安装 Python 依赖
+----------------------------------------------------------------
+在项目根目录运行：
+
+    pip install -r requirements.txt
+
+如果使用虚拟环境（推荐）：
+
+    python -m venv venv
+    venv\Scripts\activate        # Windows
+    source venv/bin/activate     # macOS/Linux
+    pip install -r requirements.txt
+
+
+📝 步骤 2: 获取 Gemini API Key
+----------------------------------------------------------------
+1. 访问: https://ai.google.dev/gemini-api/docs
+2. 点击 "获取 API 密钥"
+3. 登录 Google 账号
+4. 创建或选择项目
+5. 复制生成的 API Key
+
+
+📝 步骤 3: 配置环境变量
+----------------------------------------------------------------
+方法 A - 使用配置脚本（推荐）：
+
+    python env_setup.py
+
+方法 B - 手动创建 .env 文件：
+
+    在项目根目录创建 .env 文件，内容如下：
+
+    GEMINI_API_KEY=你的API密钥
+    HOST=0.0.0.0
+    PORT=8000
+    DEBUG=True
+
+
+📝 步骤 4: 启动服务器
+----------------------------------------------------------------
+方式 1 - 直接运行：
+
+    python main.py
+
+方式 2 - 使用 uvicorn：
+
+    uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+方式 3 - 使用 Docker：
+
+    docker-compose up --build
+
+
+📝 步骤 5: 测试服务
+----------------------------------------------------------------
+1. 访问 API 文档:
+   http://localhost:8000/docs
+
+2. 运行测试脚本:
+   python test_api.py
+
+3. 运行示例代码:
+   python examples/example_usage.py
+
+
+✅ 完成！
+----------------------------------------------------------------
+服务现在应该运行在: http://localhost:8000
+
+- API 文档: http://localhost:8000/docs
+- ReDoc 文档: http://localhost:8000/redoc
+- 健康检查: http://localhost:8000/health
+
+
+🔧 常见问题
+----------------------------------------------------------------
+Q: 启动失败，提示 "Gemini API key is required"
+A: 请确保 .env 文件存在且包含 GEMINI_API_KEY
+
+Q: 端口被占用
+A: 修改 .env 中的 PORT 值或停止占用端口的程序
+
+Q: API 调用返回 500 错误
+A: 检查 API Key 是否有效，网络是否正常
+
+
+📚 更多信息
+----------------------------------------------------------------
+- 完整文档: README.md
+- 快速入门: QUICKSTART.md
+- 项目结构: PROJECT_STRUCTURE.md
+- Gemini API 文档: https://ai.google.dev/gemini-api/docs
+
+================================================================
+

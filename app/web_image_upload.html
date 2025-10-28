@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini 图片分析 - 在线工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .upload-section {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 2px dashed #667eea;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .upload-section:hover {
+            border-color: #764ba2;
+            background: #f0f0f5;
+        }
+
+        .upload-section.dragover {
+            background: #e8eaf6;
+            border-color: #5e35b1;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+            cursor: pointer;
+            margin: 20px 0;
+        }
+
+        .file-input-wrapper input[type="file"] {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .file-input-label {
+            display: inline-block;
+            padding: 15px 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 1.1em;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .file-input-label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .file-input-label:active {
+            transform: translateY(0);
+        }
+
+        .preview-section {
+            margin: 20px 0;
+            display: none;
+        }
+
+        .preview-section.active {
+            display: block;
+        }
+
+        .preview-image {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .prompt-section {
+            margin: 30px 0;
+        }
+
+        .prompt-section label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 1.1em;
+        }
+
+        .prompt-input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        .prompt-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .quick-prompts {
+            margin-top: 15px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .quick-prompt-btn {
+            padding: 8px 16px;
+            background: #f0f0f5;
+            border: 1px solid #d0d0d5;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s;
+        }
+
+        .quick-prompt-btn:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .analyze-btn {
+            width: 100%;
+            padding: 18px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.2em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .analyze-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+
+        .analyze-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .result-section {
+            display: none;
+            margin-top: 30px;
+            padding: 30px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            border-left: 5px solid #667eea;
+        }
+
+        .result-section.active {
+            display: block;
+            animation: fadeIn 0.5s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .result-section h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+
+        .result-text {
+            color: #333;
+            line-height: 1.8;
+            font-size: 1.05em;
+            white-space: pre-wrap;
+        }
+
+        .error-section {
+            display: none;
+            margin-top: 20px;
+            padding: 20px;
+            background: #ffebee;
+            border-left: 5px solid #e53935;
+            border-radius: 10px;
+        }
+
+        .error-section.active {
+            display: block;
+            animation: fadeIn 0.5s;
+        }
+
+        .error-section h3 {
+            color: #c62828;
+            margin-bottom: 10px;
+        }
+        
+        .error-section p {
+            color: #666;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .api-status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+
+        .api-status.online {
+            background: #4caf50;
+            color: white;
+        }
+
+        .api-status.offline {
+            background: #f44336;
+            color: white;
+        }
+
+        .file-info {
+            display: none;
+            margin-top: 10px;
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .file-info.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎨 Gemini 图片分析</h1>
+            <p>上传图片，让 AI 为你分析</p>
+            <div id="apiStatus" class="api-status">检查中...</div>
+        </div>
+
+        <div class="content">
+            <!-- 上传区域 -->
+            <div class="upload-section" id="uploadSection">
+                <h2>📸 上传图片</h2>
+                <p style="color: #666; margin: 10px 0;">支持 JPG, PNG, GIF, WebP 等格式</p>
+                
+                <div class="file-input-wrapper">
+                    <input type="file" id="fileInput" accept="image/*">
+                    <label for="fileInput" class="file-input-label">
+                        选择图片
+                    </label>
+                </div>
+                
+                <p style="color: #999; margin-top: 10px;">或拖拽图片到此处</p>
+                
+                <div id="fileInfo" class="file-info"></div>
+            </div>
+
+            <!-- 预览区域 -->
+            <div class="preview-section" id="previewSection">
+                <h3>预览</h3>
+                <img id="previewImage" class="preview-image" alt="预览">
+            </div>
+
+            <!-- 提示词区域 -->
+            <div class="prompt-section">
+                <label for="promptInput">💬 分析提示（可自定义）</label>
+                <input 
+                    type="text" 
+                    id="promptInput" 
+                    class="prompt-input" 
+                    value="详细描述这张图片"
+                    placeholder="输入你想让 AI 做什么分析..."
+                >
+                
+                <div class="quick-prompts">
+                    <button class="quick-prompt-btn" data-prompt="详细描述这张图片">📝 详细描述</button>
+                    <button class="quick-prompt-btn" data-prompt="列出图片中的所有物体">🔍 物体检测</button>
+                    <button class="quick-prompt-btn" data-prompt="提取图片中的所有文字">📄 文字提取</button>
+                    <button class="quick-prompt-btn" data-prompt="分析图片的颜色和构图">🎨 颜色分析</button>
+                    <button class="quick-prompt-btn" data-prompt="评估这张图片的质量">⭐ 质量评估</button>
+                    <button class="quick-prompt-btn" data-prompt="这张图片属于什么类别？">📊 图片分类</button>
+                </div>
+            </div>
+
+            <!-- 分析按钮 -->
+            <button class="analyze-btn" id="analyzeBtn" disabled>
+                🚀 开始分析
+            </button>
+
+            <!-- 加载动画 -->
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>AI 正在分析中，请稍候...</p>
+            </div>
+
+            <!-- 结果区域 -->
+            <div class="result-section" id="resultSection">
+                <h3>✨ 分析结果</h3>
+                <div class="result-text" id="resultText"></div>
+            </div>
+
+            <!-- 错误区域 -->
+            <div class="error-section" id="errorSection">
+                <h3>❌ 出错了</h3>
+                <p id="errorText"></p>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Powered by Google Gemini API | Made with ❤️</p>
+            <p style="margin-top: 5px; font-size: 0.85em;">
+                确保后端服务运行在 <code>http://localhost:8000</code>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000';
+        let selectedFile = null;
+
+        // DOM 元素
+        const fileInput = document.getElementById('fileInput');
+        const uploadSection = document.getElementById('uploadSection');
+        const previewSection = document.getElementById('previewSection');
+        const previewImage = document.getElementById('previewImage');
+        const promptInput = document.getElementById('promptInput');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const loading = document.getElementById('loading');
+        const resultSection = document.getElementById('resultSection');
+        const resultText = document.getElementById('resultText');
+        const errorSection = document.getElementById('errorSection');
+        const errorText = document.getElementById('errorText');
+        const apiStatus = document.getElementById('apiStatus');
+        const fileInfo = document.getElementById('fileInfo');
+
+        // 检查 API 状态
+        async function checkAPIStatus() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/health`);
+                if (response.ok) {
+                    apiStatus.textContent = '🟢 服务在线';
+                    apiStatus.className = 'api-status online';
+                } else {
+                    apiStatus.textContent = '🔴 服务异常';
+                    apiStatus.className = 'api-status offline';
+                }
+            } catch (error) {
+                apiStatus.textContent = '🔴 服务离线';
+                apiStatus.className = 'api-status offline';
+            }
+        }
+
+        // 文件选择处理
+        fileInput.addEventListener('change', handleFileSelect);
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                processFile(file);
+            }
+        }
+
+        // 拖拽上传
+        uploadSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadSection.classList.add('dragover');
+        });
+
+        uploadSection.addEventListener('dragleave', () => {
+            uploadSection.classList.remove('dragover');
+        });
+
+        uploadSection.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadSection.classList.remove('dragover');
+            
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                processFile(file);
+            } else {
+                showError('请上传图片文件');
+            }
+        });
+
+        // 处理文件
+        function processFile(file) {
+            selectedFile = file;
+            
+            // 显示文件信息
+            const sizeMB = (file.size / 1024 / 1024).toFixed(2);
+            fileInfo.textContent = `📎 ${file.name} (${sizeMB} MB)`;
+            fileInfo.classList.add('active');
+            
+            // 预览图片
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                previewImage.src = e.target.result;
+                previewSection.classList.add('active');
+            };
+            reader.readAsDataURL(file);
+            
+            // 启用分析按钮
+            analyzeBtn.disabled = false;
+            
+            // 隐藏之前的结果
+            resultSection.classList.remove('active');
+            errorSection.classList.remove('active');
+        }
+
+        // 快捷提示词按钮
+        document.querySelectorAll('.quick-prompt-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                promptInput.value = btn.dataset.prompt;
+            });
+        });
+
+        // 分析按钮
+        analyzeBtn.addEventListener('click', analyzeImage);
+
+        async function analyzeImage() {
+            if (!selectedFile) {
+                showError('请先选择图片');
+                return;
+            }
+
+            const prompt = promptInput.value.trim();
+            if (!prompt) {
+                showError('请输入分析提示');
+                return;
+            }
+
+            // 显示加载动画
+            loading.classList.add('active');
+            analyzeBtn.disabled = true;
+            resultSection.classList.remove('active');
+            errorSection.classList.remove('active');
+
+            // 准备表单数据
+            const formData = new FormData();
+            formData.append('image', selectedFile);
+            formData.append('prompt', prompt);
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/gemini/analyze-image`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                // 检查 HTTP 状态
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // 显示结果
+                    resultText.textContent = result.analysis;
+                    resultSection.classList.add('active');
+                } else {
+                    // 显示详细的错误信息
+                    let errorMsg = result.message || '分析失败';
+                    
+                    // 如果是地理位置限制错误，提供帮助信息
+                    if (errorMsg.includes('User location is not supported')) {
+                        errorMsg += '\n\n💡 解决方案：\n';
+                        errorMsg += '1. 启动代理工具（Clash、V2rayN 等）\n';
+                        errorMsg += '2. 在 .env 文件中配置代理：\n';
+                        errorMsg += '   HTTP_PROXY=http://127.0.0.1:7890\n';
+                        errorMsg += '   HTTPS_PROXY=http://127.0.0.1:7890\n';
+                        errorMsg += '3. 重启后端服务：python main.py\n';
+                        errorMsg += '\n详见文档：PROXY_SETUP.md';
+                    }
+                    
+                    showError(errorMsg);
+                }
+            } catch (error) {
+                let errorMsg = `请求失败: ${error.message}`;
+                
+                // 如果是网络连接错误
+                if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                    errorMsg = '❌ 无法连接到服务器\n\n';
+                    errorMsg += '请确保：\n';
+                    errorMsg += '1. 后端服务正在运行：python main.py\n';
+                    errorMsg += '2. 服务运行在 http://localhost:8000\n';
+                    errorMsg += '3. 防火墙未阻止连接\n';
+                    errorMsg += '\n提示：在终端运行 python main.py 启动服务';
+                } else {
+                    errorMsg += '\n\n如果问题持续，请查看：\n';
+                    errorMsg += '- 浏览器控制台（F12）\n';
+                    errorMsg += '- 后端服务日志\n';
+                    errorMsg += '- TROUBLESHOOTING.md 文档';
+                }
+                
+                showError(errorMsg);
+            } finally {
+                loading.classList.remove('active');
+                analyzeBtn.disabled = false;
+            }
+        }
+
+        // 显示错误
+        function showError(message) {
+            errorText.textContent = message;
+            errorSection.classList.add('active');
+            resultSection.classList.remove('active');
+        }
+
+        // 页面加载时检查 API 状态
+        checkAPIStatus();
+        
+        // 每 30 秒检查一次
+        setInterval(checkAPIStatus, 30000);
+    </script>
+</body>
+</html>
+
