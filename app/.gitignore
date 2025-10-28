@@ -2,5 +2,10 @@ node_modules
 dist
 .DS_Store
 .env
+__pycache__
+*.pyc
+*.pyo
+smg_images
+flood_analysis
 
 

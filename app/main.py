@@ -8,6 +8,7 @@ import logging
 
 from config import get_settings
 from routers.doubao_router import router as doubao_router
+from routers.gemini_router import router as gemini_router
 from models import HealthResponse
 
 # 配置日志
@@ -75,6 +76,7 @@ async def root():
 
 # 注册路由
 app.include_router(doubao_router)
+app.include_router(gemini_router)
 
 
 # 全局异常处理
