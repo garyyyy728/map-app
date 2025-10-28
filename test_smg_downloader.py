@@ -12,7 +12,8 @@ from smg_image_downloader import (
     ensure_directories,
     get_image_url,
     download_image,
-    analyze_flood_with_gemini,
+    analyze_flood_with_model,
+    load_model,
     save_analysis_result,
     LOCATION_NAMES,
     CAMERA_GROUPS
@@ -62,17 +63,25 @@ def test_download(url):
 
 
 def test_analyze(image_path):
-    """測試 Gemini 分析"""
-    print("\n=== 測試 4: Gemini 水浸分析 ===")
+    """測試 HuggingFace 模型分析"""
+    print("\n=== 測試 4: HuggingFace 水浸檢測 ===")
     if not image_path or not os.path.exists(image_path):
         print("跳過分析測試（無有效圖片）")
         return None
     
-    result = analyze_flood_with_gemini(image_path)
+    # 先載入模型
+    print("正在載入模型...")
+    model, processor = load_model()
+    if model is None or processor is None:
+        print("✗ 模型載入失敗")
+        return None
+    
+    result = analyze_flood_with_model(image_path)
     
     if result and result.get('success'):
         print(f"✓ 分析成功")
-        print(f"  分析結果摘要: {result.get('analysis', '')[:100]}...")
+        print(f"  檢測結果: {result.get('predicted_label', 'N/A')}")
+        print(f"  置信度: {result.get('confidence', 0):.2%}")
         return result
     else:
         print(f"✗ 分析失敗: {result.get('error', 'Unknown error') if result else 'No result'}")
@@ -100,9 +109,9 @@ def main():
     print("1. 創建必要的目錄")
     print("2. 獲取一個測試地點的圖片 URL")
     print("3. 下載測試圖片")
-    print("4. 使用 Gemini API 分析水浸情況")
+    print("4. 使用 HuggingFace 模型分析水浸情況")
     print("5. 保存分析結果")
-    print("\n注意: 此測試會實際調用 API 和下載圖片")
+    print("\n注意: 此測試會下載圖片並載入 AI 模型")
     print("=" * 80)
     
     try:

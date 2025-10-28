@@ -1,20 +1,19 @@
 """
-SMG 街道圖片下載器 + Gemini 水浸分析
-自動從澳門氣象局獲取實時街道圖片，並使用 Gemini API 分析水浸情況
+SMG 街道圖片下載器 + HuggingFace 水浸檢測
+自動從澳門氣象局獲取實時街道圖片，並使用 HuggingFace 模型分析水浸情況
 """
 import requests
 import time
 import os
 import re
-import base64
 from datetime import datetime
 from typing import Optional, Dict, List
+from PIL import Image
 
-# Gemini API 配置
-# 建議使用環境變量: export GEMINI_API_KEY="your_key_here"
-# 警告：不要在生產環境中使用默認值！請設置環境變量。
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent"
+# HuggingFace 模型配置
+MODEL_NAME = "prithivMLmods/Flood-Image-Detection"
+model = None
+processor = None
 
 # 循環間隔設置
 INTERVAL_MINUTES = 10
@@ -57,9 +56,37 @@ SAVE_DIR = "smg_images"
 ANALYSIS_SAVE_DIR = "smg_analysis_results"
 
 
+def load_model():
+    """
+    載入 HuggingFace 水浸檢測模型
+    
+    Returns:
+        Tuple of (model, processor) if successful, None otherwise
+    """
+    global model, processor
+    
+    if model is not None and processor is not None:
+        return model, processor
+    
+    try:
+        print("正在載入 HuggingFace 水浸檢測模型...")
+        from transformers import AutoProcessor, AutoModelForImageClassification
+        
+        processor = AutoProcessor.from_pretrained(MODEL_NAME)
+        model = AutoModelForImageClassification.from_pretrained(MODEL_NAME)
+        
+        print(f"✓ 模型載入成功: {MODEL_NAME}")
+        return model, processor
+        
+    except Exception as e:
+        print(f"✗ 模型載入失敗: {str(e)}")
+        return None, None
+
+
 def mask_api_key(url: str) -> str:
     """
     遮蔽 URL 中的 API key 以避免記錄敏感信息
+    （保留此函數以維持向後兼容，但在新版本中不再使用）
     
     Args:
         url: 包含 API key 的 URL
@@ -147,82 +174,76 @@ def download_image(name: str, url: str) -> Optional[str]:
         return None
 
 
-def analyze_flood_with_gemini(image_path: str) -> Optional[Dict]:
+def analyze_flood_with_model(image_path: str) -> Optional[Dict]:
     """
-    使用 Gemini API 分析圖片中的水浸情況
+    使用 HuggingFace 模型分析圖片中的水浸情況
     
     Args:
         image_path: 圖片文件路徑
         
     Returns:
-        分析結果字典，包含分析文本和元數據
+        分析結果字典，包含分類結果和置信度
     """
     try:
-        print(f"正在使用 Gemini 分析圖片: {image_path}")
+        print(f"正在使用 HuggingFace 模型分析圖片: {image_path}")
         
-        # 讀取圖片並轉換為 base64
-        with open(image_path, "rb") as f:
-            image_data = base64.b64encode(f.read()).decode("utf-8")
-        
-        # 構建請求數據
-        request_data = {
-            "contents": [
-                {
-                    "parts": [
-                        {"text": "分析這張圖片裡面的水浸情況如何"},
-                        {
-                            "inline_data": {
-                                "mime_type": "image/jpeg",
-                                "data": image_data
-                            }
-                        }
-                    ]
-                }
-            ],
-            "generationConfig": {
-                "temperature": 0.4,
-                "maxOutputTokens": 1024,
+        # 載入模型（如果尚未載入）
+        model_obj, processor_obj = load_model()
+        if model_obj is None or processor_obj is None:
+            return {
+                "image_path": image_path,
+                "error": "模型載入失敗",
+                "timestamp": datetime.now().isoformat(),
+                "success": False
             }
+        
+        # 載入圖片
+        image = Image.open(image_path)
+        
+        # 預處理圖片
+        inputs = processor_obj(images=image, return_tensors="pt")
+        
+        # 進行預測
+        import torch
+        with torch.no_grad():
+            outputs = model_obj(**inputs)
+            logits = outputs.logits
+            
+        # 獲取預測結果
+        predicted_class_idx = logits.argmax(-1).item()
+        probabilities = torch.nn.functional.softmax(logits, dim=-1)[0]
+        confidence = probabilities[predicted_class_idx].item()
+        
+        # 獲取類別標籤
+        id2label = model_obj.config.id2label
+        predicted_label = id2label[predicted_class_idx]
+        
+        # 構建分析文本
+        analysis_text = f"水浸檢測結果: {predicted_label}\n"
+        analysis_text += f"置信度: {confidence:.2%}\n\n"
+        analysis_text += "所有類別的概率:\n"
+        
+        # 按概率排序顯示所有類別
+        sorted_indices = torch.argsort(probabilities, descending=True)
+        for idx in sorted_indices:
+            label = id2label[idx.item()]
+            prob = probabilities[idx].item()
+            analysis_text += f"  - {label}: {prob:.2%}\n"
+        
+        print(f"✓ 分析完成")
+        print(f"檢測結果: {predicted_label} (置信度: {confidence:.2%})")
+        
+        return {
+            "image_path": image_path,
+            "analysis": analysis_text,
+            "predicted_label": predicted_label,
+            "confidence": confidence,
+            "timestamp": datetime.now().isoformat(),
+            "success": True
         }
-        
-        # 發送請求到 Gemini API
-        headers = {
-            "Content-Type": "application/json",
-        }
-        
-        url = f"{GEMINI_API_URL}?key={GEMINI_API_KEY}"
-        
-        response = requests.post(
-            url,
-            json=request_data,
-            headers=headers,
-            timeout=60
-        )
-        response.raise_for_status()
-        
-        result = response.json()
-        
-        # 提取分析結果
-        if "candidates" in result and len(result["candidates"]) > 0:
-            candidate = result["candidates"][0]
-            if "content" in candidate and "parts" in candidate["content"]:
-                analysis_text = candidate["content"]["parts"][0]["text"]
-                
-                print(f"✓ 分析完成")
-                print(f"分析結果: {analysis_text[:100]}...")
-                
-                return {
-                    "image_path": image_path,
-                    "analysis": analysis_text,
-                    "timestamp": datetime.now().isoformat(),
-                    "success": True
-                }
-        
-        print(f"✗ 未能從 API 響應中提取分析結果")
-        return None
         
     except Exception as e:
-        print(f"✗ Gemini 分析失敗: {str(e)}")
+        print(f"✗ 模型分析失敗: {str(e)}")
         return {
             "image_path": image_path,
             "error": str(e),
@@ -292,10 +313,10 @@ def process_single_location(group: str) -> bool:
         print(f"跳過 {group}: 圖片下載失敗")
         return False
     
-    # 3. 使用 Gemini 分析水浸情況
-    analysis_result = analyze_flood_with_gemini(image_path)
+    # 3. 使用 HuggingFace 模型分析水浸情況
+    analysis_result = analyze_flood_with_model(image_path)
     if not analysis_result:
-        print(f"跳過 {group}: Gemini 分析失敗")
+        print(f"跳過 {group}: 模型分析失敗")
         return False
     
     # 4. 保存分析結果
@@ -307,36 +328,37 @@ def process_single_location(group: str) -> bool:
 
 def main():
     """主程序入口"""
-    # 檢查 requests 庫
+    # 檢查必要的庫
     try:
         import requests
-    except ImportError:
-        print("\n[錯誤] 'requests' 庫未安裝。")
-        print("請在您的終端機運行: pip install requests")
-        return
-    
-    # 檢查 API key 是否設置
-    if not GEMINI_API_KEY or GEMINI_API_KEY == "":
-        print("\n[錯誤] GEMINI_API_KEY 未設置。")
-        print("請設置環境變量: export GEMINI_API_KEY='your_api_key'")
-        print("或在腳本中直接設置 GEMINI_API_KEY 變量（僅用於開發測試）")
+        from transformers import AutoProcessor, AutoModelForImageClassification
+        import torch
+        from PIL import Image
+    except ImportError as e:
+        print(f"\n[錯誤] 缺少必要的庫: {e}")
+        print("請安裝所需依賴:")
+        print("  pip install requests transformers torch pillow")
         return
     
     # 確保目錄存在
     ensure_directories()
     
+    # 預先載入模型
+    print("\n正在初始化水浸檢測模型...")
+    model_obj, processor_obj = load_model()
+    if model_obj is None or processor_obj is None:
+        print("\n[錯誤] 無法載入 HuggingFace 模型")
+        print("請確保已安裝 transformers 庫並且網絡連接正常")
+        return
+    
     print("\n" + "=" * 80)
-    print("SMG 街道圖片下載器 + Gemini 水浸分析")
+    print("SMG 街道圖片下載器 + HuggingFace 水浸檢測")
     print("=" * 80)
     print(f"圖片保存目錄: {SAVE_DIR}")
     print(f"分析結果保存目錄: {ANALYSIS_SAVE_DIR}")
     print(f"循環間隔: {INTERVAL_MINUTES} 分鐘")
     print(f"地點數量: {len(CAMERA_GROUPS)}")
-    # 安全顯示 API key（僅顯示最後 4 位）
-    if GEMINI_API_KEY and len(GEMINI_API_KEY) >= 4:
-        print(f"Gemini API Key: 已設置 (***{GEMINI_API_KEY[-4:]})")
-    else:
-        print(f"Gemini API Key: 已設置")
+    print(f"檢測模型: {MODEL_NAME}")
     print("=" * 80 + "\n")
     
     cycle_count = 0

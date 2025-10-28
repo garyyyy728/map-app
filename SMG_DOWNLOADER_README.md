@@ -1,11 +1,12 @@
-# SMG 街道圖片下載器 + Gemini 水浸分析
+# SMG 街道圖片下載器 + HuggingFace 水浸檢測
 
-這是一個自動從澳門氣象局（SMG）獲取實時街道圖片，並使用 Google Gemini API 分析水浸情況的工具。
+這是一個自動從澳門氣象局（SMG）獲取實時街道圖片，並使用 HuggingFace Transformers 模型分析水浸情況的工具。
 
 ## 功能特點
 
 - ✅ 自動從 SMG API 獲取 19 個地點的實時街道圖片
-- ✅ 使用 Gemini 2.0 Flash 模型分析每張圖片的水浸情況
+- ✅ 使用 HuggingFace 預訓練模型 (Flood-Image-Detection) 檢測水浸
+- ✅ 本地推理，無需 API Key
 - ✅ 自動保存圖片和分析結果
 - ✅ 循環執行，持續監控
 - ✅ 完整的錯誤處理和日誌記錄
@@ -30,47 +31,20 @@
 ## 安裝依賴
 
 ```bash
-pip install requests
+pip install requests transformers torch pillow
 ```
 
-## 配置 API Key
+或使用 requirements.txt：
 
-**重要安全提示**：建議使用環境變量設置 API key，而不是直接寫在代碼中。
-
-### 方法 1：使用環境變量（推薦）
-
-**Linux/Mac:**
 ```bash
-export GEMINI_API_KEY="your_api_key_here"
-python smg_image_downloader.py
+pip install -r requirements.txt
 ```
-
-**Windows (PowerShell):**
-```powershell
-$env:GEMINI_API_KEY="your_api_key_here"
-python smg_image_downloader.py
-```
-
-**Windows (CMD):**
-```cmd
-set GEMINI_API_KEY=your_api_key_here
-python smg_image_downloader.py
-```
-
-### 方法 2：直接在腳本中設置（僅用於開發測試）
-
-在腳本開頭修改：
-```python
-GEMINI_API_KEY = "your_api_key_here"
-```
-
-**注意**：如果使用此方法，請確保不要將包含真實 API key 的代碼提交到公開的版本控制系統。
 
 ## 使用方法
 
 ### 基本使用
 
-設置 API key 後，直接運行腳本：
+無需 API key，直接運行腳本：
 
 ```bash
 python smg_image_downloader.py
@@ -143,8 +117,14 @@ ANALYSIS_SAVE_DIR = "smg_analysis_results"
 Gemini API 會根據這個提示詞分析圖片中的水浸情況，包括：
 - 是否有積水
 - 積水程度
-- 受影響區域
-- 可能的風險等級
+## 分析結果
+
+使用的 HuggingFace 模型：**prithivMLmods/Flood-Image-Detection**
+
+模型會對圖片進行分類，輸出結果包括：
+- 檢測類別（如：flooded, non-flooded 等）
+- 置信度百分比
+- 所有可能類別的概率分布
 
 ## API 說明
 
@@ -154,48 +134,48 @@ Gemini API 會根據這個提示詞分析圖片中的水浸情況，包括：
 - **方法**：GET
 - **返回**：JSON 格式的圖片信息列表
 
-### Gemini API
+### HuggingFace 模型
 
-- **端點**：`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent`
-- **方法**：POST
-- **模型**：gemini-2.0-flash-exp
-- **功能**：圖片理解和分析
+- **模型**：prithivMLmods/Flood-Image-Detection
+- **類型**：Image Classification（圖片分類）
+- **功能**：水浸檢測
+- **推理**：本地推理，無需 API key
 
 ## 錯誤處理
 
 腳本包含完整的錯誤處理機制：
 
 - ✅ API 請求超時處理
-- ✅ 網絡錯誤重試
+- ✅ 網絡錯誤處理
+- ✅ 模型載入失敗處理
 - ✅ 文件保存失敗處理
 - ✅ 鍵盤中斷處理（Ctrl+C）
 - ✅ 詳細的錯誤日誌輸出
-- ✅ API key 遮蔽保護
 
-## 安全注意事項
+## 注意事項
 
-⚠️ **重要安全提示**：
+⚠️ **重要提示**：
 
-1. **API 密鑰保護**：
-   - ✅ 優先使用環境變量存儲 API key
-   - ✅ 不要將包含真實 API key 的代碼提交到公開倉庫
-   - ✅ 腳本已實現 API key 遮蔽功能，日誌中只顯示最後 4 位
-   - ⚠️ 定期輪換 API key，特別是當懷疑已洩露時
+1. **系統要求**：
+   - Python 3.8 或更高版本
+   - 建議使用 GPU 以加快推理速度（可選）
+   - 至少 2GB 可用磁盤空間（用於模型緩存）
 
 2. **數據隱私**：
    - 下載的街道圖片可能包含個人隱私信息
    - 請遵守當地數據保護法規
    - 建議定期清理舊數據
 
-3. **網絡安全**：
+3. **網絡連接**：
+   - 首次運行需要下載模型（約 500MB）
    - 使用 HTTPS 加密通信
-   - 如在受限網絡環境，建議使用受信任的代理
+   - 需要穩定的網絡連接訪問 SMG API
 
 ## 其他注意事項
 
 1. **請求頻率**：建議設置合理的循環間隔（10 分鐘以上），避免過度請求
-2. **存儲空間**：長時間運行會累積大量圖片和分析結果，注意監控磁盤空間
-3. **網絡連接**：需要穩定的網絡連接訪問 SMG 和 Gemini API
+2. **存儲空間**：長時間運行會累積大量圖片和分析結果，注意監控磁盤空間（模型緩存約 500MB）
+3. **首次啟動**：第一次運行時會自動下載模型，可能需要幾分鐘時間
 
 ## 停止程序
 
@@ -203,20 +183,24 @@ Gemini API 會根據這個提示詞分析圖片中的水浸情況，包括：
 
 ## 故障排除
 
-### 問題：無法連接到 Gemini API
+### 問題：缺少依賴庫
 
 ```
-✗ Gemini 分析失敗: 400 FAILED_PRECONDITION
-User location is not supported for the API use.
+[錯誤] 缺少必要的庫: No module named 'transformers'
 ```
 
-**解決方案**：如果您在中國大陸，需要配置代理才能訪問 Gemini API。
+**解決方案**：安裝所有依賴 `pip install -r requirements.txt`
 
-### 問題：requests 模塊未找到
+### 問題：模型載入失敗
 
 ```
-[錯誤] 'requests' 庫未安裝。
+✗ 模型載入失敗: ...
 ```
+
+**解決方案**：
+1. 檢查網絡連接
+2. 確保有足夠的磁盤空間（至少 2GB）
+3. 嘗試手動下載模型：`python -c "from transformers import AutoModelForImageClassification; AutoModelForImageClassification.from_pretrained('prithivMLmods/Flood-Image-Detection')"`
 
 **解決方案**：運行 `pip install requests` 安裝依賴。
 
