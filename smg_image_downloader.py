@@ -10,7 +10,9 @@ from datetime import datetime
 from typing import Optional, Dict, List
 
 # Gemini API 配置
-GEMINI_API_KEY = "AIzaSyBUU2MYPMqc9NHanRp68tRCJsUb5wWA1wU"
+# 建議使用環境變量: export GEMINI_API_KEY="your_key_here"
+# 或者直接在此處設置（僅用於開發測試，生產環境請使用環境變量）
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyBUU2MYPMqc9NHanRp68tRCJsUb5wWA1wU")
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent"
 
 # 循環間隔設置
@@ -52,6 +54,23 @@ LOCATION_NAMES = {
 # 圖片保存文件夾
 SAVE_DIR = "smg_images"
 ANALYSIS_SAVE_DIR = "smg_analysis_results"
+
+
+def mask_api_key(url: str) -> str:
+    """
+    遮蔽 URL 中的 API key 以避免記錄敏感信息
+    
+    Args:
+        url: 包含 API key 的 URL
+        
+    Returns:
+        遮蔽後的 URL
+    """
+    if "key=" in url:
+        parts = url.split("key=")
+        if len(parts) == 2:
+            return parts[0] + "key=***MASKED***"
+    return url
 
 
 def ensure_directories():
@@ -296,6 +315,13 @@ def main():
         print("請在您的終端機運行: pip install requests")
         return
     
+    # 檢查 API key 是否設置
+    if not GEMINI_API_KEY or GEMINI_API_KEY == "":
+        print("\n[錯誤] GEMINI_API_KEY 未設置。")
+        print("請設置環境變量: export GEMINI_API_KEY='your_api_key'")
+        print("或在腳本中直接設置 GEMINI_API_KEY 變量（僅用於開發測試）")
+        return
+    
     # 確保目錄存在
     ensure_directories()
     
@@ -306,6 +332,7 @@ def main():
     print(f"分析結果保存目錄: {ANALYSIS_SAVE_DIR}")
     print(f"循環間隔: {INTERVAL_MINUTES} 分鐘")
     print(f"地點數量: {len(CAMERA_GROUPS)}")
+    print(f"Gemini API Key: {'已設置 (***' + GEMINI_API_KEY[-4:] + ')' if len(GEMINI_API_KEY) > 4 else '已設置'}")
     print("=" * 80 + "\n")
     
     cycle_count = 0

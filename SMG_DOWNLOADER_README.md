@@ -33,11 +33,44 @@
 pip install requests
 ```
 
+## 配置 API Key
+
+**重要安全提示**：建議使用環境變量設置 API key，而不是直接寫在代碼中。
+
+### 方法 1：使用環境變量（推薦）
+
+**Linux/Mac:**
+```bash
+export GEMINI_API_KEY="your_api_key_here"
+python smg_image_downloader.py
+```
+
+**Windows (PowerShell):**
+```powershell
+$env:GEMINI_API_KEY="your_api_key_here"
+python smg_image_downloader.py
+```
+
+**Windows (CMD):**
+```cmd
+set GEMINI_API_KEY=your_api_key_here
+python smg_image_downloader.py
+```
+
+### 方法 2：直接在腳本中設置（僅用於開發測試）
+
+在腳本開頭修改：
+```python
+GEMINI_API_KEY = "your_api_key_here"
+```
+
+**注意**：如果使用此方法，請確保不要將包含真實 API key 的代碼提交到公開的版本控制系統。
+
 ## 使用方法
 
 ### 基本使用
 
-直接運行腳本：
+設置 API key 後，直接運行腳本：
 
 ```bash
 python smg_image_downloader.py
@@ -50,9 +83,6 @@ python smg_image_downloader.py
 ```python
 # 循環間隔（分鐘）
 INTERVAL_MINUTES = 10
-
-# Gemini API Key（已內建，可更換）
-GEMINI_API_KEY = "AIzaSyBUU2MYPMqc9NHanRp68tRCJsUb5wWA1wU"
 
 # 圖片保存目錄
 SAVE_DIR = "smg_images"
@@ -140,13 +170,32 @@ Gemini API 會根據這個提示詞分析圖片中的水浸情況，包括：
 - ✅ 文件保存失敗處理
 - ✅ 鍵盤中斷處理（Ctrl+C）
 - ✅ 詳細的錯誤日誌輸出
+- ✅ API key 遮蔽保護
 
-## 注意事項
+## 安全注意事項
 
-1. **API 密鑰安全**：建議將 API 密鑰存儲在環境變量中，而不是硬編碼在腳本中
-2. **請求頻率**：建議設置合理的循環間隔（10 分鐘以上），避免過度請求
-3. **存儲空間**：長時間運行會累積大量圖片和分析結果，注意監控磁盤空間
-4. **網絡連接**：需要穩定的網絡連接訪問 SMG 和 Gemini API
+⚠️ **重要安全提示**：
+
+1. **API 密鑰保護**：
+   - ✅ 優先使用環境變量存儲 API key
+   - ✅ 不要將包含真實 API key 的代碼提交到公開倉庫
+   - ✅ 腳本已實現 API key 遮蔽功能，日誌中只顯示最後 4 位
+   - ⚠️ 定期輪換 API key，特別是當懷疑已洩露時
+
+2. **數據隱私**：
+   - 下載的街道圖片可能包含個人隱私信息
+   - 請遵守當地數據保護法規
+   - 建議定期清理舊數據
+
+3. **網絡安全**：
+   - 使用 HTTPS 加密通信
+   - 如在受限網絡環境，建議使用受信任的代理
+
+## 其他注意事項
+
+1. **請求頻率**：建議設置合理的循環間隔（10 分鐘以上），避免過度請求
+2. **存儲空間**：長時間運行會累積大量圖片和分析結果，注意監控磁盤空間
+3. **網絡連接**：需要穩定的網絡連接訪問 SMG 和 Gemini API
 
 ## 停止程序
 
