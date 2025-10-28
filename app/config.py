@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     doubao_api_key: str = ""
     doubao_base_url: str = "https://ark.cn-beijing.volces.com/api/v3"
     
+    # Gemini API 配置
+    gemini_api_key: str = ""
+    
     # 服务器配置
     host: str = "0.0.0.0"
     port: int = 8000
