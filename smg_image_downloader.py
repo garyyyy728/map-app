@@ -5,14 +5,15 @@ SMG 街道圖片下載器 + Gemini 水浸分析
 import requests
 import time
 import os
+import re
 import base64
 from datetime import datetime
 from typing import Optional, Dict, List
 
 # Gemini API 配置
 # 建議使用環境變量: export GEMINI_API_KEY="your_key_here"
-# 或者直接在此處設置（僅用於開發測試，生產環境請使用環境變量）
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyBUU2MYPMqc9NHanRp68tRCJsUb5wWA1wU")
+# 警告：不要在生產環境中使用默認值！請設置環境變量。
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent"
 
 # 循環間隔設置
@@ -67,9 +68,8 @@ def mask_api_key(url: str) -> str:
         遮蔽後的 URL
     """
     if "key=" in url:
-        parts = url.split("key=")
-        if len(parts) == 2:
-            return parts[0] + "key=***MASKED***"
+        # 使用正則表達式替換來遮蔽 key 參數，保留其他查詢參數
+        return re.sub(r'key=[^&]*', 'key=***MASKED***', url)
     return url
 
 
@@ -332,7 +332,11 @@ def main():
     print(f"分析結果保存目錄: {ANALYSIS_SAVE_DIR}")
     print(f"循環間隔: {INTERVAL_MINUTES} 分鐘")
     print(f"地點數量: {len(CAMERA_GROUPS)}")
-    print(f"Gemini API Key: {'已設置 (***' + GEMINI_API_KEY[-4:] + ')' if len(GEMINI_API_KEY) > 4 else '已設置'}")
+    # 安全顯示 API key（僅顯示最後 4 位）
+    if GEMINI_API_KEY and len(GEMINI_API_KEY) >= 4:
+        print(f"Gemini API Key: 已設置 (***{GEMINI_API_KEY[-4:]})")
+    else:
+        print(f"Gemini API Key: 已設置")
     print("=" * 80 + "\n")
     
     cycle_count = 0
