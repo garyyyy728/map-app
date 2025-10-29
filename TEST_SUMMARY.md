@@ -149,23 +149,28 @@ $ python smg_image_downloader.py
 
 ## 🚀 如何在生產環境中運行
 
+**注意**: 以下所有命令都應該在項目根目錄（包含 `smg_image_downloader.py` 的目錄）中執行。
+
 ### 前置條件
 ```bash
-# 1. 確保 Python 版本 >= 3.8
+# 1. 切換到項目目錄
+cd /path/to/map-app
+
+# 2. 確保 Python 版本 >= 3.8
 python --version
 
-# 2. 安裝依賴
+# 3. 安裝依賴
 pip install -r requirements.txt
 
-# 3. 確保網絡連接正常（首次需要下載模型）
+# 4. 確保網絡連接正常（首次需要下載模型）
 ```
 
 ### 運行測試
 ```bash
-# 離線測試（驗證基礎功能）
+# 離線測試（驗證基礎功能，無需網絡）
 python test_smg_offline.py
 
-# 完整測試（需要網絡）
+# 完整測試（需要網絡連接）
 python test_smg_downloader.py
 ```
 

@@ -8,11 +8,17 @@ echo "============================================================"
 echo ""
 
 # 檢查 Python 版本
+check_python_version() {
+    # 檢查 Python 版本是否 >= 3.8
+    python -c "import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)" 2>/dev/null
+    return $?
+}
+
 echo "🔍 檢查 Python 版本..."
 python_version=$(python --version 2>&1)
 echo "   $python_version"
 
-if python -c "import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)"; then
+if check_python_version; then
     echo "   ✅ Python 版本符合要求 (>= 3.8)"
 else
     echo "   ❌ Python 版本過低，需要 3.8 或更高版本"
@@ -68,8 +74,11 @@ echo ""
 
 # 檢查磁盤空間
 echo "🔍 檢查磁盤空間..."
-available_space=$(df -h . | awk 'NR==2 {print $4}')
-echo "   可用空間: $available_space"
+if available_space=$(df -h . 2>/dev/null | awk 'NR==2 {print $4}'); then
+    echo "   可用空間: $available_space"
+else
+    echo "   ⚠️  無法確定可用空間"
+fi
 echo "   建議: 至少 2GB（首次運行需要下載模型）"
 echo ""
 
