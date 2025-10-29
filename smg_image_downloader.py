@@ -218,10 +218,17 @@ def analyze_flood_with_model(image_path: str) -> Optional[Dict]:
         id2label = model_obj.config.id2label
         predicted_label = id2label[predicted_class_idx]
         
+        # 判斷是否有水浸（根據標籤判斷）
+        is_flooded = "flood" in predicted_label.lower()
+        flood_status = "有水浸" if is_flooded else "無水浸"
+        
         # 構建分析文本
-        analysis_text = f"水浸檢測結果: {predicted_label}\n"
+        analysis_text = f"{'='*60}\n"
+        analysis_text += f"水浸狀態: {flood_status}\n"
+        analysis_text += f"{'='*60}\n\n"
+        analysis_text += f"檢測類別: {predicted_label}\n"
         analysis_text += f"置信度: {confidence:.2%}\n\n"
-        analysis_text += "所有類別的概率:\n"
+        analysis_text += "所有類別的概率分布:\n"
         
         # 按概率排序顯示所有類別
         sorted_indices = torch.argsort(probabilities, descending=True)
@@ -231,13 +238,15 @@ def analyze_flood_with_model(image_path: str) -> Optional[Dict]:
             analysis_text += f"  - {label}: {prob:.2%}\n"
         
         print(f"✓ 分析完成")
-        print(f"檢測結果: {predicted_label} (置信度: {confidence:.2%})")
+        print(f"水浸狀態: {flood_status} | 檢測結果: {predicted_label} (置信度: {confidence:.2%})")
         
         return {
             "image_path": image_path,
             "analysis": analysis_text,
             "predicted_label": predicted_label,
             "confidence": confidence,
+            "is_flooded": is_flooded,
+            "flood_status": flood_status,
             "timestamp": datetime.now().isoformat(),
             "success": True
         }
@@ -270,10 +279,18 @@ def save_analysis_result(location: str, analysis_result: Dict):
             f.write(f"時間: {analysis_result.get('timestamp', 'N/A')}\n")
             f.write(f"圖片路徑: {analysis_result.get('image_path', 'N/A')}\n")
             f.write(f"分析狀態: {'成功' if analysis_result.get('success') else '失敗'}\n")
+            
+            # 如果分析成功，顯示水浸狀態
+            if analysis_result.get('success'):
+                flood_status = analysis_result.get('flood_status', 'N/A')
+                f.write(f"\n{'='*80}\n")
+                f.write(f"【水浸狀態】: {flood_status}\n")
+                f.write(f"{'='*80}\n")
+            
             f.write("-" * 80 + "\n")
             
             if analysis_result.get('success'):
-                f.write("水浸情況分析:\n")
+                f.write("詳細分析結果:\n")
                 f.write(analysis_result.get('analysis', 'N/A'))
             else:
                 f.write("錯誤信息:\n")
@@ -287,7 +304,7 @@ def save_analysis_result(location: str, analysis_result: Dict):
         print(f"✗ 保存分析結果失敗: {str(e)}")
 
 
-def process_single_location(group: str) -> bool:
+def process_single_location(group: str) -> Optional[Dict]:
     """
     處理單個地點：下載圖片並分析
     
@@ -295,7 +312,7 @@ def process_single_location(group: str) -> bool:
         group: 地點代號
         
     Returns:
-        是否處理成功
+        分析結果字典，如果失敗返回 None
     """
     print(f"\n{'='*60}")
     print(f"處理地點: {group} ({LOCATION_NAMES.get(group, group)})")
@@ -305,25 +322,39 @@ def process_single_location(group: str) -> bool:
     image_url = get_image_url(group)
     if not image_url:
         print(f"跳過 {group}: 無法獲取圖片 URL")
-        return False
+        return None
     
     # 2. 下載圖片
     image_path = download_image(group, image_url)
     if not image_path:
         print(f"跳過 {group}: 圖片下載失敗")
-        return False
+        return None
     
     # 3. 使用 HuggingFace 模型分析水浸情況
     analysis_result = analyze_flood_with_model(image_path)
     if not analysis_result:
         print(f"跳過 {group}: 模型分析失敗")
-        return False
+        return None
     
     # 4. 保存分析結果
     save_analysis_result(group, analysis_result)
     
+    # 5. 顯示處理結果摘要
+    if analysis_result.get('success'):
+        flood_status = analysis_result.get('flood_status', 'N/A')
+        predicted_label = analysis_result.get('predicted_label', 'N/A')
+        confidence = analysis_result.get('confidence', 0)
+        
+        print(f"\n{'*'*60}")
+        print(f"處理完成摘要:")
+        print(f"  地點: {group} ({LOCATION_NAMES.get(group, group)})")
+        print(f"  水浸狀態: {flood_status}")
+        print(f"  檢測類別: {predicted_label}")
+        print(f"  置信度: {confidence:.2%}")
+        print(f"{'*'*60}\n")
+    
     print(f"✓ {group} 處理完成")
-    return True
+    return analysis_result
 
 
 def main():
@@ -372,12 +403,27 @@ def main():
         
         success_count = 0
         fail_count = 0
+        flooded_locations = []  # 記錄有水浸的地點
+        non_flooded_locations = []  # 記錄無水浸的地點
         
         # 處理每個地點
         for group in CAMERA_GROUPS:
             try:
-                if process_single_location(group):
+                result = process_single_location(group)
+                if result and result.get('success'):
                     success_count += 1
+                    # 記錄水浸狀態
+                    if result.get('is_flooded'):
+                        flooded_locations.append({
+                            'location': group,
+                            'name': LOCATION_NAMES.get(group, group),
+                            'confidence': result.get('confidence', 0)
+                        })
+                    else:
+                        non_flooded_locations.append({
+                            'location': group,
+                            'name': LOCATION_NAMES.get(group, group)
+                        })
                 else:
                     fail_count += 1
                 
@@ -393,6 +439,25 @@ def main():
         print(f"第 {cycle_count} 次循環完成")
         print(f"成功: {success_count} 個地點")
         print(f"失敗: {fail_count} 個地點")
+        
+        # 顯示水浸狀態摘要
+        print(f"\n{'='*80}")
+        print(f"水浸狀態摘要:")
+        print(f"{'='*80}")
+        
+        if flooded_locations:
+            print(f"\n⚠️  發現水浸地點 ({len(flooded_locations)} 個):")
+            for loc in flooded_locations:
+                print(f"  - {loc['location']} ({loc['name']}) - 置信度: {loc['confidence']:.2%}")
+        else:
+            print(f"\n✅ 沒有檢測到水浸地點")
+        
+        if non_flooded_locations:
+            print(f"\n✓ 正常地點 ({len(non_flooded_locations)} 個):")
+            for loc in non_flooded_locations:
+                print(f"  - {loc['location']} ({loc['name']})")
+        
+        print(f"\n{'='*80}")
         print(f"下次循環時間: {INTERVAL_MINUTES} 分鐘後")
         print(f"{'='*80}\n")
         

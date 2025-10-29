@@ -80,7 +80,8 @@ def test_analyze(image_path):
     
     if result and result.get('success'):
         print(f"✓ 分析成功")
-        print(f"  檢測結果: {result.get('predicted_label', 'N/A')}")
+        print(f"  水浸狀態: {result.get('flood_status', 'N/A')}")
+        print(f"  檢測類別: {result.get('predicted_label', 'N/A')}")
         print(f"  置信度: {result.get('confidence', 0):.2%}")
         return result
     else:
@@ -144,6 +145,12 @@ def main():
         if result:
             print(f"分析狀態: {'成功' if result.get('success') else '失敗'}")
             if result.get('success'):
+                print(f"\n水浸檢測結果:")
+                print("-" * 80)
+                print(f"水浸狀態: {result.get('flood_status', 'N/A')}")
+                print(f"檢測類別: {result.get('predicted_label', 'N/A')}")
+                print(f"置信度: {result.get('confidence', 0):.2%}")
+                print("-" * 80)
                 print(f"\n完整分析結果:")
                 print("-" * 80)
                 print(result.get('analysis', 'N/A'))
