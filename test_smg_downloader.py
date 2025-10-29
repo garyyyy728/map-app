@@ -63,16 +63,16 @@ def test_download(url):
 
 
 def test_analyze(image_path):
-    """測試 HuggingFace 模型分析"""
-    print("\n=== 測試 4: HuggingFace 水浸檢測 ===")
+    """測試 Moondream 模型分析"""
+    print("\n=== 測試 4: Moondream 水浸檢測 ===")
     if not image_path or not os.path.exists(image_path):
         print("跳過分析測試（無有效圖片）")
         return None
     
     # 先載入模型
     print("正在載入模型...")
-    model, processor = load_model()
-    if model is None or processor is None:
+    model, tokenizer = load_model()
+    if model is None or tokenizer is None:
         print("✗ 模型載入失敗")
         return None
     
@@ -81,8 +81,7 @@ def test_analyze(image_path):
     if result and result.get('success'):
         print(f"✓ 分析成功")
         print(f"  水浸狀態: {result.get('flood_status', 'N/A')}")
-        print(f"  檢測類別: {result.get('predicted_label', 'N/A')}")
-        print(f"  置信度: {result.get('confidence', 0):.2%}")
+        print(f"  水浸分析: {result.get('flood_analysis', 'N/A')[:80]}...")
         return result
     else:
         print(f"✗ 分析失敗: {result.get('error', 'Unknown error') if result else 'No result'}")
@@ -110,7 +109,7 @@ def main():
     print("1. 創建必要的目錄")
     print("2. 獲取一個測試地點的圖片 URL")
     print("3. 下載測試圖片")
-    print("4. 使用 HuggingFace 模型分析水浸情況")
+    print("4. 使用 Moondream 模型分析水浸情況")
     print("5. 保存分析結果")
     print("\n注意: 此測試會下載圖片並載入 AI 模型")
     print("=" * 80)
@@ -125,7 +124,7 @@ def main():
         # 測試 3: 下載圖片
         image_path = test_download(url)
         
-        # 測試 4: Gemini 分析
+        # 測試 4: Moondream 分析
         result = test_analyze(image_path)
         
         # 測試 5: 保存結果
@@ -148,8 +147,7 @@ def main():
                 print(f"\n水浸檢測結果:")
                 print("-" * 80)
                 print(f"水浸狀態: {result.get('flood_status', 'N/A')}")
-                print(f"檢測類別: {result.get('predicted_label', 'N/A')}")
-                print(f"置信度: {result.get('confidence', 0):.2%}")
+                print(f"水浸分析: {result.get('flood_analysis', 'N/A')[:100]}...")
                 print("-" * 80)
                 print(f"\n完整分析結果:")
                 print("-" * 80)

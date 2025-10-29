@@ -1,5 +1,5 @@
 """
-離線測試 SMG 街道圖片下載器 + HuggingFace 水浸檢測
+離線測試 SMG 街道圖片下載器 + Moondream 本地視覺模型水浸檢測
 使用模擬數據測試所有核心功能，無需外部 API 連接
 """
 import sys
@@ -54,30 +54,23 @@ def test_directories():
 
 
 def test_model_loading():
-    """測試 2: HuggingFace 模型載入"""
-    print("\n=== 測試 2: HuggingFace 模型載入 ===")
+    """測試 2: Moondream 模型載入"""
+    print("\n=== 測試 2: Moondream 模型載入 ===")
     try:
-        print("正在嘗試載入 HuggingFace 水浸檢測模型...")
-        model, processor = load_model()
+        print("正在嘗試載入 Moondream 本地視覺模型...")
+        model, tokenizer = load_model()
         
-        if model is None or processor is None:
+        if model is None or tokenizer is None:
             print("✗ 模型載入失敗")
             print("注意: 模型載入失敗可能是由於:")
-            print("  1. 網絡連接問題（首次需要下載模型）")
-            print("  2. 磁盤空間不足")
+            print("  1. 網絡連接問題（首次需要下載模型，約 2GB）")
+            print("  2. 磁盤空間不足（需要至少 3GB）")
             print("  3. 依賴庫版本不兼容")
             return False
         
         print(f"✓ 模型載入成功")
         print(f"✓ 模型類型: {type(model).__name__}")
-        print(f"✓ 處理器類型: {type(processor).__name__}")
-        
-        # 驗證模型配置
-        if hasattr(model, 'config') and hasattr(model.config, 'id2label'):
-            labels = model.config.id2label
-            print(f"✓ 模型支持 {len(labels)} 個分類標籤:")
-            for label_id, label_name in labels.items():
-                print(f"    - {label_id}: {label_name}")
+        print(f"✓ Tokenizer 類型: {type(tokenizer).__name__}")
         
         print("✓ 模型載入測試通過")
         return True
@@ -123,7 +116,7 @@ def test_image_creation():
 
 def test_flood_analysis(image_path):
     """測試 4: 水浸檢測分析"""
-    print("\n=== 測試 4: HuggingFace 水浸檢測分析 ===")
+    print("\n=== 測試 4: Moondream 水浸檢測分析 ===")
     
     if not image_path or not os.path.exists(image_path):
         print("✗ 跳過分析測試（無有效測試圖片）")
@@ -144,14 +137,13 @@ def test_flood_analysis(image_path):
             return result
         
         # 驗證結果包含必要的字段
-        required_fields = ['predicted_label', 'confidence', 'is_flooded', 'flood_status', 'analysis']
+        required_fields = ['flood_analysis', 'scene_description', 'is_flooded', 'flood_status', 'analysis']
         for field in required_fields:
             assert field in result, f"分析結果缺少必要字段: {field}"
         
         print("✓ 分析成功完成")
         print(f"✓ 水浸狀態: {result['flood_status']}")
-        print(f"✓ 檢測類別: {result['predicted_label']}")
-        print(f"✓ 置信度: {result['confidence']:.2%}")
+        print(f"✓ 水浸分析: {result['flood_analysis'][:80]}...")
         print(f"✓ 是否有水浸: {'是' if result['is_flooded'] else '否'}")
         
         # 顯示完整分析文本的一部分
@@ -265,11 +257,11 @@ def test_location_mapping():
 def run_all_tests():
     """運行所有測試"""
     print("=" * 80)
-    print("SMG 街道圖片下載器 + HuggingFace 水浸檢測 - 離線功能測試")
+    print("SMG 街道圖片下載器 + Moondream 本地視覺模型水浸檢測 - 離線功能測試")
     print("=" * 80)
     print("\n本測試套件將驗證以下功能：")
     print("1. 目錄創建和管理")
-    print("2. HuggingFace 模型載入")
+    print("2. Moondream 模型載入")
     print("3. 圖片創建和處理")
     print("4. 水浸檢測分析")
     print("5. 分析結果保存")
@@ -321,7 +313,7 @@ def run_all_tests():
         else:
             results['failed'] += 1
     else:
-        print("\n=== 測試 4: HuggingFace 水浸檢測分析 ===")
+        print("\n=== 測試 4: Moondream 水浸檢測分析 ===")
         print("✗ 跳過此測試（模型未載入或圖片創建失敗）")
         results['skipped'] += 1
         analysis_result = None

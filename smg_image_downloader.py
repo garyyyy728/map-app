@@ -1,6 +1,6 @@
 """
-SMG 街道圖片下載器 + HuggingFace 水浸檢測
-自動從澳門氣象局獲取實時街道圖片，並使用 HuggingFace 模型分析水浸情況
+SMG 街道圖片下載器 + Moondream 本地視覺模型水浸檢測
+自動從澳門氣象局獲取實時街道圖片，並使用 Moondream 本地模型分析水浸情況
 """
 import requests
 import time
@@ -10,10 +10,10 @@ from datetime import datetime
 from typing import Optional, Dict, List
 from PIL import Image
 
-# HuggingFace 模型配置
-MODEL_NAME = "prithivMLmods/Flood-Image-Detection"
+# Moondream 模型配置
+MODEL_NAME = "vikhyatk/moondream2"
 model = None
-processor = None
+tokenizer = None
 
 # 循環間隔設置
 INTERVAL_MINUTES = 10
@@ -58,25 +58,30 @@ ANALYSIS_SAVE_DIR = "smg_analysis_results"
 
 def load_model():
     """
-    載入 HuggingFace 水浸檢測模型
+    載入 Moondream 本地視覺模型
     
     Returns:
-        Tuple of (model, processor) if successful, None otherwise
+        Tuple of (model, tokenizer) if successful, None otherwise
     """
-    global model, processor
+    global model, tokenizer
     
-    if model is not None and processor is not None:
-        return model, processor
+    if model is not None and tokenizer is not None:
+        return model, tokenizer
     
     try:
-        print("正在載入 HuggingFace 水浸檢測模型...")
-        from transformers import AutoProcessor, AutoModelForImageClassification
+        print("正在載入 Moondream 本地視覺模型...")
+        from transformers import AutoModelForCausalLM, AutoTokenizer
         
-        processor = AutoProcessor.from_pretrained(MODEL_NAME)
-        model = AutoModelForImageClassification.from_pretrained(MODEL_NAME)
+        # 載入 Moondream2 模型
+        model = AutoModelForCausalLM.from_pretrained(
+            MODEL_NAME,
+            trust_remote_code=True,
+            revision="2024-08-26"
+        )
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
         
         print(f"✓ 模型載入成功: {MODEL_NAME}")
-        return model, processor
+        return model, tokenizer
         
     except Exception as e:
         print(f"✗ 模型載入失敗: {str(e)}")
@@ -176,20 +181,20 @@ def download_image(name: str, url: str) -> Optional[str]:
 
 def analyze_flood_with_model(image_path: str) -> Optional[Dict]:
     """
-    使用 HuggingFace 模型分析圖片中的水浸情況
+    使用 Moondream 本地視覺模型分析圖片中的水浸情況
     
     Args:
         image_path: 圖片文件路徑
         
     Returns:
-        分析結果字典，包含分類結果和置信度
+        分析結果字典，包含分析文本和水浸判斷
     """
     try:
-        print(f"正在使用 HuggingFace 模型分析圖片: {image_path}")
+        print(f"正在使用 Moondream 模型分析圖片: {image_path}")
         
         # 載入模型（如果尚未載入）
-        model_obj, processor_obj = load_model()
-        if model_obj is None or processor_obj is None:
+        model_obj, tokenizer_obj = load_model()
+        if model_obj is None or tokenizer_obj is None:
             return {
                 "image_path": image_path,
                 "error": "模型載入失敗",
@@ -200,51 +205,50 @@ def analyze_flood_with_model(image_path: str) -> Optional[Dict]:
         # 載入圖片
         image = Image.open(image_path)
         
-        # 預處理圖片
-        inputs = processor_obj(images=image, return_tensors="pt")
+        # 使用 Moondream 進行圖片分析
+        # 編碼圖片
+        enc_image = model_obj.encode_image(image)
         
-        # 進行預測
-        import torch
-        with torch.no_grad():
-            outputs = model_obj(**inputs)
-            logits = outputs.logits
-            
-        # 獲取預測結果
-        predicted_class_idx = logits.argmax(-1).item()
-        probabilities = torch.nn.functional.softmax(logits, dim=-1)[0]
-        confidence = probabilities[predicted_class_idx].item()
+        # 詢問關於水浸的問題
+        flood_question = "請仔細觀察這張圖片，描述是否有水浸（積水、淹水）的情況？如果有水浸，請描述水浸的程度（輕微、中等、嚴重）。"
+        flood_analysis = model_obj.answer_question(enc_image, flood_question, tokenizer_obj)
         
-        # 獲取類別標籤
-        id2label = model_obj.config.id2label
-        predicted_label = id2label[predicted_class_idx]
+        # 詢問詳細的場景描述
+        scene_question = "請描述這張圖片中看到的場景，包括道路、建築物、天氣狀況等。"
+        scene_description = model_obj.answer_question(enc_image, scene_question, tokenizer_obj)
         
-        # 判斷是否有水浸（根據標籤判斷）
-        is_flooded = "flood" in predicted_label.lower()
+        # 基於回答判斷是否有水浸
+        flood_keywords = ["水浸", "積水", "淹水", "洪水", "水災", "flooding", "flooded", "water", "積"]
+        analysis_lower = flood_analysis.lower()
+        
+        # 判斷是否提到水浸
+        is_flooded = any(keyword in analysis_lower for keyword in flood_keywords)
+        
+        # 如果提到了沒有水浸的關鍵字，則判定為無水浸
+        no_flood_keywords = ["沒有水浸", "無水浸", "no flooding", "no water", "乾燥", "沒有積水", "沒有淹水"]
+        has_no_flood = any(keyword in analysis_lower for keyword in no_flood_keywords)
+        
+        if has_no_flood:
+            is_flooded = False
+        
         flood_status = "有水浸" if is_flooded else "無水浸"
         
         # 構建分析文本
         analysis_text = f"{'='*60}\n"
         analysis_text += f"水浸狀態: {flood_status}\n"
         analysis_text += f"{'='*60}\n\n"
-        analysis_text += f"檢測類別: {predicted_label}\n"
-        analysis_text += f"置信度: {confidence:.2%}\n\n"
-        analysis_text += "所有類別的概率分布:\n"
-        
-        # 按概率排序顯示所有類別
-        sorted_indices = torch.argsort(probabilities, descending=True)
-        for idx in sorted_indices:
-            label = id2label[idx.item()]
-            prob = probabilities[idx].item()
-            analysis_text += f"  - {label}: {prob:.2%}\n"
+        analysis_text += f"【水浸分析】\n{flood_analysis}\n\n"
+        analysis_text += f"【場景描述】\n{scene_description}\n"
         
         print(f"✓ 分析完成")
-        print(f"水浸狀態: {flood_status} | 檢測結果: {predicted_label} (置信度: {confidence:.2%})")
+        print(f"水浸狀態: {flood_status}")
+        print(f"分析摘要: {flood_analysis[:100]}...")
         
         return {
             "image_path": image_path,
             "analysis": analysis_text,
-            "predicted_label": predicted_label,
-            "confidence": confidence,
+            "flood_analysis": flood_analysis,
+            "scene_description": scene_description,
             "is_flooded": is_flooded,
             "flood_status": flood_status,
             "timestamp": datetime.now().isoformat(),
@@ -253,6 +257,8 @@ def analyze_flood_with_model(image_path: str) -> Optional[Dict]:
         
     except Exception as e:
         print(f"✗ 模型分析失敗: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return {
             "image_path": image_path,
             "error": str(e),
@@ -342,15 +348,13 @@ def process_single_location(group: str) -> Optional[Dict]:
     # 5. 顯示處理結果摘要
     if analysis_result.get('success'):
         flood_status = analysis_result.get('flood_status', 'N/A')
-        predicted_label = analysis_result.get('predicted_label', 'N/A')
-        confidence = analysis_result.get('confidence', 0)
+        flood_analysis = analysis_result.get('flood_analysis', 'N/A')
         
         print(f"\n{'*'*60}")
         print(f"處理完成摘要:")
         print(f"  地點: {group} ({LOCATION_NAMES.get(group, group)})")
         print(f"  水浸狀態: {flood_status}")
-        print(f"  檢測類別: {predicted_label}")
-        print(f"  置信度: {confidence:.2%}")
+        print(f"  分析摘要: {flood_analysis[:80]}...")
         print(f"{'*'*60}\n")
     
     print(f"✓ {group} 處理完成")
@@ -362,8 +366,7 @@ def main():
     # 檢查必要的庫
     try:
         import requests
-        from transformers import AutoProcessor, AutoModelForImageClassification
-        import torch
+        from transformers import AutoModelForCausalLM, AutoTokenizer
         from PIL import Image
     except ImportError as e:
         print(f"\n[錯誤] 缺少必要的庫: {e}")
@@ -375,15 +378,15 @@ def main():
     ensure_directories()
     
     # 預先載入模型
-    print("\n正在初始化水浸檢測模型...")
-    model_obj, processor_obj = load_model()
-    if model_obj is None or processor_obj is None:
-        print("\n[錯誤] 無法載入 HuggingFace 模型")
+    print("\n正在初始化 Moondream 本地視覺模型...")
+    model_obj, tokenizer_obj = load_model()
+    if model_obj is None or tokenizer_obj is None:
+        print("\n[錯誤] 無法載入 Moondream 模型")
         print("請確保已安裝 transformers 庫並且網絡連接正常")
         return
     
     print("\n" + "=" * 80)
-    print("SMG 街道圖片下載器 + HuggingFace 水浸檢測")
+    print("SMG 街道圖片下載器 + Moondream 本地視覺模型水浸檢測")
     print("=" * 80)
     print(f"圖片保存目錄: {SAVE_DIR}")
     print(f"分析結果保存目錄: {ANALYSIS_SAVE_DIR}")
@@ -417,7 +420,7 @@ def main():
                         flooded_locations.append({
                             'location': group,
                             'name': LOCATION_NAMES.get(group, group),
-                            'confidence': result.get('confidence', 0)
+                            'analysis': result.get('flood_analysis', '')[:50]
                         })
                     else:
                         non_flooded_locations.append({
@@ -448,7 +451,7 @@ def main():
         if flooded_locations:
             print(f"\n⚠️  發現水浸地點 ({len(flooded_locations)} 個):")
             for loc in flooded_locations:
-                print(f"  - {loc['location']} ({loc['name']}) - 置信度: {loc['confidence']:.2%}")
+                print(f"  - {loc['location']} ({loc['name']}) - 分析: {loc['analysis']}...")
         else:
             print(f"\n✅ 沒有檢測到水浸地點")
         
